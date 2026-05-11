@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF 문서 요약기</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #f5f3ff;
+            --surface: #ffffff;
+            --surface-2: #f8f7ff;
+            --shadow: rgba(99, 102, 241, 0.10);
+            --shadow-deep: rgba(99, 102, 241, 0.16);
+            --text-dark: #1e1b4b;
+            --text-mid: #4338ca;
+            --text-body: #374151;
+            --text-light: #9ca3af;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --accent-light: #a5b4fc;
+            --accent-subtle: #eef2ff;
+            --border: #e0e7ff;
+            --error-bg: #fff5f5;
+            --error-border: #f87171;
+            --error-text: #b91c1c;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo',
+                         'Noto Sans KR', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-body);
+            min-height: 100vh;
+        }
+
+        /* ── Layout ── */
+        .container {
+            max-width: 680px;
+            margin: 0 auto;
+            padding: 24px 16px 80px;
+        }
+
+        /* ── Header ── */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 28px 0 24px;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header-icon {
+            width: 44px;
+            height: 44px;
+            background: var(--accent);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.32);
+        }
+        .header h1 {
+            font-size: 1.45rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            letter-spacing: -0.4px;
+        }
+        .header-sub {
+            font-size: 0.78rem;
+            color: var(--text-light);
+            margin-top: 2px;
+        }
+
+        /* ── Settings button ── */
+        .settings-btn {
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            width: 42px;
+            height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            cursor: pointer;
+            box-shadow: 0 2px 8px var(--shadow);
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .settings-btn:hover {
+            border-color: var(--accent-light);
+            box-shadow: 0 4px 14px var(--shadow-deep);
+            transform: rotate(20deg);
+        }
+
+        /* ── Card base ── */
+        .card {
+            background: var(--surface);
+            border-radius: 16px;
+            box-shadow: 0 2px 16px var(--shadow), 0 6px 40px rgba(99, 102, 241, 0.04);
+            padding: 28px;
+            margin-bottom: 16px;
+        }
+
+        /* ── Drop zone ── */
+        .upload-zone {
+            border: 2px dashed var(--accent-light);
+            border-radius: 14px;
+            padding: 48px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.22s ease;
+            background: var(--accent-subtle);
+            position: relative;
+        }
+        .upload-zone:hover,
+        .upload-zone.drag-over {
+            border-color: var(--accent);
+            background: #e0e7ff;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+        }
+        .upload-zone.drag-over {
+            transform: scale(1.01);
+        }
+        .upload-icon {
+            font-size: 2.8rem;
+            line-height: 1;
+            margin-bottom: 14px;
+        }
+        .upload-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 6px;
+        }
+        .upload-desc {
+            font-size: 0.82rem;
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+        .upload-desc strong {
+            color: var(--accent);
+        }
+        .upload-input {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+        .file-name-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--accent-subtle);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 16px;
+            font-size: 0.875rem;
+            color: var(--text-dark);
+            font-weight: 500;
+        }
+        .file-name-bar .file-icon {
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        .file-name-bar .file-name-text {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ── Loading ── */
+        .loading-card {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 44px 28px;
+            text-align: center;
+            box-shadow: 0 2px 16px var(--shadow);
+            margin-bottom: 16px;
+        }
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.85s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 8px;
+        }
+        .loading-msg {
+            font-size: 0.865rem;
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+        .progress-bar-wrap {
+            background: var(--border);
+            border-radius: 6px;
+            height: 6px;
+            margin: 18px auto 0;
+            max-width: 240px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-light));
+            border-radius: 6px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        /* ── Error ── */
+        .error-card {
+            background: var(--error-bg);
+            border: 1.5px solid #fecaca;
+            border-left: 4px solid var(--error-border);
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .error-icon {
+            font-size: 1.3rem;
+            flex-shrink: 0;
+            line-height: 1.2;
+        }
+        .error-content { flex: 1; }
+        .error-title {
+            font-weight: 600;
+            color: var(--error-text);
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+        .error-msg {
+            font-size: 0.83rem;
+            color: #dc2626;
+            line-height: 1.6;
+        }
+        .retry-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 12px;
+            background: none;
+            border: 1.5px solid var(--error-border);
+            border-radius: 8px;
+            padding: 6px 14px;
+            font-size: 0.82rem;
+            color: var(--error-text);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .retry-btn:hover {
+            background: #fee2e2;
+        }
+
+        /* ── Result card ── */
+        .result-wrapper {
+            animation: slideUp 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* title section */
+        .result-title-card {
+            background: linear-gradient(135deg, var(--accent) 0%, #818cf8 100%);
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 14px;
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+            color: #fff;
+        }
+        .result-doc-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            opacity: 0.75;
+            margin-bottom: 8px;
+        }
+        .result-doc-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            line-height: 1.45;
+            letter-spacing: -0.3px;
+        }
+
+        /* meta badges */
+        .meta-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            padding: 5px 12px;
+            font-size: 0.78rem;
+            font-weight: 500;
+            color: #fff;
+            backdrop-filter: blur(4px);
+        }
+
+        /* summary section */
+        .result-section {
+            background: var(--surface);
+            border-radius: 14px;
+            padding: 22px 24px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 12px var(--shadow);
+        }
+        .section-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 12px;
+        }
+        .section-label span {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            background: var(--accent-subtle);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            line-height: 20px;
+            text-align: center;
+        }
+        .summary-text {
+            font-size: 0.95rem;
+            line-height: 1.85;
+            color: var(--text-body);
+        }
+
+        /* key points */
+        .key-points-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .key-points-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-body);
+        }
+        .kp-bullet {
+            width: 22px;
+            height: 22px;
+            background: var(--accent-subtle);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: var(--accent);
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        /* result footer */
+        .result-footer {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 8px;
+        }
+        .reset-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 11px 22px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.28);
+        }
+        .reset-btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(99, 102, 241, 0.38);
+        }
+
+        /* ── Modal ── */
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(30, 27, 75, 0.5);
+            backdrop-filter: blur(6px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .overlay.hidden { display: none; }
+
+        .modal {
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 36px 32px 32px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 24px 64px rgba(99, 102, 241, 0.22);
+            animation: modalIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.93) translateY(14px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .modal-icon {
+            width: 56px;
+            height: 56px;
+            background: var(--accent-subtle);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.7rem;
+            margin: 0 auto 18px;
+        }
+        .modal h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            text-align: center;
+            margin-bottom: 6px;
+        }
+        .modal-desc {
+            font-size: 0.83rem;
+            color: var(--text-light);
+            text-align: center;
+            line-height: 1.7;
+            margin-bottom: 26px;
+        }
+        .form-group { margin-bottom: 6px; }
+        .form-label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 8px;
+        }
+        .input-wrap {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .form-input {
+            width: 100%;
+            padding: 11px 44px 11px 14px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: var(--text-dark);
+            background: var(--surface-2);
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+        }
+        .toggle-vis-btn {
+            position: absolute;
+            right: 12px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            color: var(--text-light);
+            padding: 4px;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+        .toggle-vis-btn:hover { color: var(--accent); }
+        .form-hint {
+            font-size: 0.74rem;
+            color: var(--text-light);
+            margin-top: 8px;
+            line-height: 1.5;
+        }
+        .form-hint a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        .form-hint a:hover { text-decoration: underline; }
+        .modal-btns {
+            display: flex;
+            gap: 10px;
+            margin-top: 24px;
+        }
+        .btn-primary {
+            flex: 1;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 13px;
+            font-size: 0.92rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.15s;
+        }
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+        .btn-ghost {
+            flex: 1;
+            background: none;
+            color: var(--text-light);
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            padding: 13px;
+            font-size: 0.92rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-ghost:hover {
+            border-color: var(--accent-light);
+            color: var(--accent);
+        }
+
+        /* ── Utility ── */
+        .hidden { display: none !important; }
+
+        /* ── Responsive ── */
+        @media (max-width: 480px) {
+            .header h1 { font-size: 1.2rem; }
+            .result-doc-title { font-size: 1.1rem; }
+            .card, .result-section { padding: 20px 18px; }
+            .result-title-card { padding: 22px 20px; }
+            .modal { padding: 28px 22px 24px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <div class="header-icon">
+                <span style="filter: brightness(10);">&#128196;</span>
+            </div>
+            <div>
+                <h1>PDF 문서 요약기</h1>
+                <div class="header-sub">AI가 핵심 내용을 빠르게 정리해 드려요</div>
+            </div>
+        </div>
+        <button class="settings-btn" onclick="UI.openSettings()" title="API 키 설정" aria-label="API 키 설정">
+            &#9881;&#65039;
+        </button>
+    </div>
+
+    <!-- Upload section -->
+    <div id="uploadSection">
+        <div id="fileNameBar" class="file-name-bar hidden" aria-live="polite">
+            <span class="file-icon">&#128196;</span>
+            <span class="file-name-text" id="fileNameText"></span>
+        </div>
+
+        <div
+            class="upload-zone"
+            id="dropZone"
+            role="button"
+            tabindex="0"
+            aria-label="PDF 파일 업로드 영역. 클릭하거나 파일을 드래그 앤 드롭하세요"
+            onkeydown="if(event.key==='Enter'||event.key===' '){document.getElementById('fileInput').click()}"
+        >
+            <input
+                type="file"
+                accept="application/pdf"
+                class="upload-input"
+                id="fileInput"
+                aria-label="PDF 파일 선택"
+                onchange="handleFileSelect(event)"
+            />
+            <div class="upload-icon">&#128196;</div>
+            <div class="upload-title">PDF 파일을 드래그하거나 클릭해서 업로드</div>
+            <div class="upload-desc">
+                최대 텍스트 <strong>40,000자</strong>까지 처리 가능<br>
+                암호화된 PDF 및 스캔 이미지 PDF는 지원하지 않습니다
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading-card hidden" id="loadingCard" role="status" aria-live="polite">
+        <div class="loading-spinner" aria-hidden="true"></div>
+        <div class="loading-title" id="loadingTitle">PDF 텍스트 추출 중...</div>
+        <div class="loading-msg" id="loadingMsg">잠시만 기다려 주세요.</div>
+        <div class="progress-bar-wrap" id="progressWrap">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+    </div>
+
+    <!-- Error -->
+    <div class="error-card hidden" id="errorCard" role="alert">
+        <div class="error-icon">&#9888;&#65039;</div>
+        <div class="error-content">
+            <div class="error-title">오류가 발생했습니다</div>
+            <div class="error-msg" id="errorMsg"></div>
+            <button class="retry-btn" onclick="App.reset()">
+                &#8635; 다시 시도하기
+            </button>
+        </div>
+    </div>
+
+    <!-- Result -->
+    <div id="resultWrapper" class="result-wrapper hidden">
+
+        <!-- Title card with meta badges -->
+        <div class="result-title-card">
+            <div class="result-doc-label">문서 분석 결과</div>
+            <div class="result-doc-title" id="rTitle"></div>
+            <div class="meta-badges">
+                <span class="badge" id="rCategory"></span>
+                <span class="badge" id="rDifficulty"></span>
+                <span class="badge" id="rReadTime"></span>
+            </div>
+        </div>
+
+        <!-- Summary -->
+        <div class="result-section">
+            <div class="section-label">
+                <span>&#128221;</span>
+                핵심 요약
+            </div>
+            <div class="summary-text" id="rSummary"></div>
+        </div>
+
+        <!-- Key points -->
+        <div class="result-section">
+            <div class="section-label">
+                <span>&#10003;</span>
+                핵심 포인트
+            </div>
+            <ul class="key-points-list" id="rKeyPoints"></ul>
+        </div>
+
+        <!-- Footer button -->
+        <div class="result-footer">
+            <button class="reset-btn" onclick="App.reset()">
+                &#8635; 다시 분석하기
+            </button>
+        </div>
+
+    </div>
+
+</div><!-- /container -->
+
+<!-- Settings Modal -->
+<div class="overlay hidden" id="settingsOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+        <div class="modal-icon">&#128273;</div>
+        <h2 id="modalTitle">API 키 설정</h2>
+        <p class="modal-desc">
+            OpenRouter API 키를 입력해 주세요.<br>
+            키는 이 기기 브라우저에만 저장됩니다.
+        </p>
+        <div class="form-group">
+            <label class="form-label" for="apiKeyInput">OpenRouter API Key</label>
+            <div class="input-wrap">
+                <input
+                    type="password"
+                    class="form-input"
+                    id="apiKeyInput"
+                    placeholder="sk-or-v1-..."
+                    autocomplete="off"
+                    spellcheck="false"
+                    onkeydown="if(event.key==='Enter') UI.saveSettings()"
+                />
+                <button
+                    class="toggle-vis-btn"
+                    id="toggleVisBtn"
+                    type="button"
+                    onclick="UI.toggleKeyVisibility()"
+                    aria-label="API 키 표시/숨기기"
+                    title="표시/숨기기"
+                >&#128065;</button>
+            </div>
+            <div class="form-hint">
+                <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>
+                에서 무료로 발급받을 수 있습니다.
+            </div>
+        </div>
+        <div class="modal-btns">
+            <button class="btn-ghost" id="cancelBtn" onclick="UI.closeSettings()">나중에</button>
+            <button class="btn-primary" onclick="UI.saveSettings()">저장하기</button>
+        </div>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════
+   PDF Object — PDF.js 기반 텍스트 추출
+════════════════════════════════════════════ */
+const PDF = {
+    MAX_TOTAL: 40000,
+    HEAD_KEEP: 20000,
+    TAIL_KEEP: 15000,
+    _workerSrc: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+
+    _init() {
+        if (typeof pdfjsLib === 'undefined') {
+            throw new Error('PDF.js 라이브러리가 로드되지 않았습니다. 페이지를 새로고침 후 다시 시도해 주세요.');
+        }
+        pdfjsLib.GlobalWorkerOptions.workerSrc = this._workerSrc;
+    },
+
+    _trim(text) {
+        if (text.length <= this.MAX_TOTAL) return text;
+        const head = text.slice(0, this.HEAD_KEEP);
+        const tail = text.slice(-this.TAIL_KEEP);
+        const omitted = text.length - this.HEAD_KEEP - this.TAIL_KEEP;
+        return `${head}\n\n[... 중간 ${omitted.toLocaleString()}자 생략 ...]\n\n${tail}`;
+    },
+
+    async extract(file, { onProgress } = {}) {
+        this._init();
+        if (!file || file.type !== 'application/pdf') {
+            throw new Error('PDF 파일만 업로드할 수 있습니다.');
+        }
+        // file.arrayBuffer()가 없는 구형 브라우저(IE, 구형 Android WebView) 대응
+        const arrayBuffer = await (
+            typeof file.arrayBuffer === 'function'
+                ? file.arrayBuffer()
+                : new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(new Error('파일을 읽는 중 오류가 발생했습니다.'));
+                    reader.readAsArrayBuffer(file);
+                })
+        );
+        let pdfDoc;
+        try {
+            pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        } catch (err) {
+            if (err?.name === 'PasswordException') {
+                throw new Error('암호로 보호된 PDF는 지원하지 않습니다.');
+            }
+            throw new Error(`PDF 파일을 열 수 없습니다: ${err?.message ?? err}`);
+        }
+
+        const totalPages = pdfDoc.numPages;
+        const pageTexts = [];
+
+        for (let i = 1; i <= totalPages; i++) {
+            if (onProgress) onProgress(i, totalPages);
+            const page = await pdfDoc.getPage(i);
+            const content = await page.getTextContent();
+            const pageText = content.items
+                .map(item => ('str' in item ? item.str + (item.hasEOL ? '\n' : '') : ''))
+                .join('');
+            pageTexts.push(pageText);
+        }
+
+        const fullText = pageTexts.join('\n').trim();
+        if (!fullText) {
+            throw new Error(
+                '텍스트를 추출할 수 없습니다. 스캔된 이미지 PDF이거나 텍스트 레이어가 없습니다.'
+            );
+        }
+        return this._trim(fullText);
+    },
+};
+
+/* ═══════════════════════════════════════════
+   API Object — OpenRouter 연동
+════════════════════════════════════════════ */
+const API = {
+    ENDPOINT: 'https://openrouter.ai/api/v1/chat/completions',
+    MODEL: 'anthropic/claude-sonnet-4-6',
+    STORAGE_KEY: 'pdfsummaryv1_key',
+
+    getApiKey() {
+        return localStorage.getItem(this.STORAGE_KEY) || '';
+    },
+
+    parseJSON(raw) {
+        let text = raw.trim();
+        // 코드펜스 제거: ```json ... ``` 또는 ``` ... ``` 전체를 처리
+        // 앞쪽 펜스: 줄 시작의 ```(json)? 와 뒤따르는 공백·개행 제거
+        text = text.replace(/^```(?:json)?[ \t]*\r?\n?/i, '');
+        // 뒤쪽 펜스: 마지막 ``` 와 앞의 공백·개행 제거
+        text = text.replace(/\r?\n?[ \t]*```\s*$/, '');
+        return JSON.parse(text.trim());
+    },
+
+    buildMessages(text) {
+        const systemPrompt = `당신은 PDF 문서를 분석하고 핵심을 요약하는 전문 AI입니다.
+사용자가 제공하는 텍스트를 분석하여 반드시 아래 JSON 형식으로만 응답하세요.
+마크다운, 설명 문장, 코드펜스 없이 순수 JSON만 출력합니다.
+
+응답 형식:
+{
+  "title": "문서 제목 또는 주제 (문서에서 유추)",
+  "summary": "3-5문장으로 구성된 핵심 내용 요약",
+  "key_points": ["핵심 포인트 1", "핵심 포인트 2", "핵심 포인트 3"],
+  "category": "문서 유형 — 논문/보고서/기술문서/기타 중 하나",
+  "difficulty": "읽기 난이도 — 쉬움/보통/어려움 중 하나",
+  "estimated_read_time": "예상 읽기 시간 (숫자만, 단위: 분)"
+}
+
+규칙:
+- 모든 필드를 반드시 포함할 것
+- key_points는 2개 이상 5개 이하
+- estimated_read_time은 숫자 문자열 (예: "5")
+- 한국어로 응답할 것`;
+
+        return [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `다음 PDF 텍스트를 분석하고 요약해 주세요:\n\n${text}` },
+        ];
+    },
+
+    getErrorMessage(status, body) {
+        if (!status) return '네트워크 오류가 발생했습니다. 인터넷 연결을 확인해 주세요.';
+        if (status === 401) return 'API 키가 올바르지 않습니다. 설정에서 키를 다시 확인해 주세요.';
+        if (status === 402) return 'OpenRouter 크레딧이 부족합니다. 충전 후 다시 시도해 주세요.';
+        if (status === 429) return '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.';
+        if (status === 503 || status === 502) {
+            return 'AI 서버가 일시적으로 불안정합니다. 잠시 후 다시 시도해 주세요.';
+        }
+        const detail = body?.error?.message ? `: ${body.error.message}` : '';
+        return `요청 처리 중 오류가 발생했습니다 (HTTP ${status})${detail}`;
+    },
+
+    async summarize(text) {
+        const apiKey = this.getApiKey();
+        if (!apiKey) {
+            throw new Error(
+                'API 키가 설정되지 않았습니다. 오른쪽 상단 설정 버튼을 눌러 OpenRouter API 키를 입력해 주세요.'
+            );
+        }
+        if (!text || text.trim().length === 0) {
+            throw new Error('요약할 텍스트가 없습니다.');
+        }
+
+        let response, bodyText;
+
+        try {
+            response = await fetch(this.ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                    'HTTP-Referer': window.location.href,
+                    'X-Title': 'PDF Summary App',
+                },
+                body: JSON.stringify({
+                    model: this.MODEL,
+                    messages: this.buildMessages(text),
+                    temperature: 0.3,
+                    max_tokens: 1024,
+                }),
+            });
+        } catch (networkErr) {
+            throw new Error(this.getErrorMessage(null, null));
+        }
+
+        try {
+            bodyText = await response.text();
+        } catch {
+            throw new Error('서버 응답을 읽는 중 오류가 발생했습니다.');
+        }
+
+        if (!response.ok) {
+            let parsed = null;
+            try { parsed = JSON.parse(bodyText); } catch { /* ignore */ }
+            throw new Error(this.getErrorMessage(response.status, parsed));
+        }
+
+        let data;
+        try {
+            data = JSON.parse(bodyText);
+        } catch {
+            throw new Error('서버 응답 형식이 올바르지 않습니다.');
+        }
+
+        const rawContent = data?.choices?.[0]?.message?.content;
+        if (!rawContent) {
+            throw new Error('AI로부터 응답을 받지 못했습니다. 다시 시도해 주세요.');
+        }
+
+        let result;
+        try {
+            result = this.parseJSON(rawContent);
+        } catch {
+            throw new Error('AI 응답을 JSON으로 파싱하지 못했습니다. 다시 시도해 주세요.');
+        }
+
+        const required = ['title', 'summary', 'key_points', 'category', 'difficulty', 'estimated_read_time'];
+        const missing = required.filter(k => !(k in result));
+        if (missing.length > 0) {
+            throw new Error(`AI 응답에 필수 필드가 누락되었습니다: ${missing.join(', ')}`);
+        }
+
+        return result;
+    },
+};
+
+/* ═══════════════════════════════════════════
+   App Object — 전체 흐름 제어
+════════════════════════════════════════════ */
+const App = {
+    _currentFile: null,
+    _isRunning: false,
+
+    async run(file) {
+        // 이미 처리 중이면 중복 실행 방지
+        if (this._isRunning) return;
+        this._isRunning = true;
+        this._currentFile = file;
+        this._setLoading(true, 'extract');
+
+        let extractedText;
+
+        // 1. PDF 텍스트 추출
+        try {
+            extractedText = await PDF.extract(file, {
+                onProgress: (current, total) => {
+                    const pct = Math.round((current / total) * 100);
+                    $('loadingTitle').textContent = 'PDF 텍스트 추출 중...';
+                    $('loadingMsg').textContent = `${current} / ${total} 페이지 처리 중`;
+                    $('progressBar').style.width = `${pct}%`;
+                    $('progressWrap').classList.remove('hidden');
+                },
+            });
+        } catch (err) {
+            this._isRunning = false;
+            this._showError(err.message);
+            return;
+        }
+
+        // 2. AI 요약 호출
+        this._setLoading(true, 'ai');
+
+        try {
+            const result = await API.summarize(extractedText);
+            this._isRunning = false;
+            this._showResult(result);
+        } catch (err) {
+            this._isRunning = false;
+            this._showError(err.message);
+            // API 키 오류 시 설정 모달 자동 표시
+            if (
+                err.message.includes('API 키가 설정되지') ||
+                err.message.includes('API 키가 올바르지')
+            ) {
+                setTimeout(() => UI.openSettings(), 350);
+            }
+        }
+    },
+
+    reset() {
+        this._currentFile = null;
+        this._isRunning = false;
+
+        // 업로드 구역 초기화
+        show('uploadSection');
+        hide('fileNameBar');
+        hide('loadingCard');
+        hide('errorCard');
+        hide('resultWrapper');
+
+        // 파일 인풋 초기화
+        const fileInput = $('fileInput');
+        fileInput.value = '';
+
+        // 프로그레스 바 초기화
+        $('progressBar').style.width = '0%';
+        $('progressWrap').classList.remove('hidden');
+
+        // 드롭존 drag-over 상태 제거
+        $('dropZone').classList.remove('drag-over');
+    },
+
+    _setLoading(on, phase) {
+        if (on) {
+            hide('uploadSection');
+            hide('errorCard');
+            hide('resultWrapper');
+            show('loadingCard');
+
+            if (phase === 'extract') {
+                $('loadingTitle').textContent = 'PDF 텍스트 추출 중...';
+                $('loadingMsg').textContent = '페이지를 분석하고 있습니다.';
+                $('progressWrap').classList.remove('hidden');
+                $('progressBar').style.width = '0%';
+            } else if (phase === 'ai') {
+                $('loadingTitle').textContent = 'AI가 문서를 분석 중...';
+                $('loadingMsg').textContent = '핵심 내용을 요약하고 있습니다. 잠시만 기다려 주세요.';
+                $('progressWrap').classList.add('hidden');
+            }
+        } else {
+            hide('loadingCard');
+        }
+    },
+
+    _showResult(r) {
+        // title card
+        $('rTitle').textContent = r.title || '(제목 없음)';
+
+        const categoryMap = {
+            '논문': '&#128196; 논문',
+            '보고서': '&#128203; 보고서',
+            '기술문서': '&#128187; 기술문서',
+            '기타': '&#128196; 기타',
+        };
+        const difficultyMap = {
+            '쉬움': '&#127881; 쉬움',
+            '보통': '&#128218; 보통',
+            '어려움': '&#128293; 어려움',
+        };
+
+        // Object.prototype 오염 방지를 위해 hasOwnProperty 대신 Object.prototype.hasOwnProperty.call 사용
+        const catSafe = Object.prototype.hasOwnProperty.call(categoryMap, r.category)
+            ? categoryMap[r.category]
+            : `&#127991;&#65039; ${esc(r.category)}`;
+        const diffSafe = Object.prototype.hasOwnProperty.call(difficultyMap, r.difficulty)
+            ? difficultyMap[r.difficulty]
+            : `&#128218; ${esc(r.difficulty)}`;
+
+        $('rCategory').innerHTML = catSafe;
+        $('rDifficulty').innerHTML = diffSafe;
+        $('rReadTime').innerHTML = `&#9201;&#65039; ${esc(String(r.estimated_read_time))}분 소요`;
+
+        // summary
+        $('rSummary').textContent = r.summary || '';
+
+        // key points
+        const kpEl = $('rKeyPoints');
+        const points = Array.isArray(r.key_points) ? r.key_points : [];
+        kpEl.innerHTML = points
+            .map((pt, i) => `
+                <li>
+                    <span class="kp-bullet">${i + 1}</span>
+                    <span>${esc(pt)}</span>
+                </li>
+            `)
+            .join('');
+
+        hide('loadingCard');
+        hide('errorCard');
+        show('resultWrapper');
+    },
+
+    _showError(message) {
+        hide('loadingCard');
+        hide('resultWrapper');
+        // 에러 발생 시 업로드 섹션을 유지하여 사용자가 다른 파일을 선택하거나
+        // 드래그 앤 드롭으로 재시도할 수 있도록 함
+        show('uploadSection');
+        $('errorMsg').textContent = message || '알 수 없는 오류가 발생했습니다.';
+        show('errorCard');
+    },
+};
+
+/* ═══════════════════════════════════════════
+   UI Object — 설정 모달
+════════════════════════════════════════════ */
+const UI = {
+    openSettings() {
+        const hasKey = !!API.getApiKey();
+        $('apiKeyInput').value = API.getApiKey();
+        $('apiKeyInput').type = 'password';
+        $('toggleVisBtn').textContent = '👁'; // 👁
+        $('cancelBtn').textContent = hasKey ? '취소' : '나중에';
+        $('settingsOverlay').classList.remove('hidden');
+        setTimeout(() => $('apiKeyInput').focus(), 120);
+    },
+
+    closeSettings() {
+        $('settingsOverlay').classList.add('hidden');
+    },
+
+    saveSettings() {
+        const key = $('apiKeyInput').value.trim();
+        if (!key) {
+            $('apiKeyInput').focus();
+            $('apiKeyInput').style.borderColor = '#f87171';
+            setTimeout(() => { $('apiKeyInput').style.borderColor = ''; }, 1500);
+            return;
+        }
+        localStorage.setItem(API.STORAGE_KEY, key);
+        this.closeSettings();
+    },
+
+    toggleKeyVisibility() {
+        const input = $('apiKeyInput');
+        const btn = $('toggleVisBtn');
+        if (input.type === 'password') {
+            input.type = 'text';
+            btn.textContent = '🛇'; // 🛇
+            btn.title = '숨기기';
+        } else {
+            input.type = 'password';
+            btn.textContent = '👁'; // 👁
+            btn.title = '표시';
+        }
+    },
+};
+
+/* ═══════════════════════════════════════════
+   DOM Helpers
+════════════════════════════════════════════ */
+function $(id) { return document.getElementById(id); }
+function show(id) { $(id).classList.remove('hidden'); }
+function hide(id) { $(id).classList.add('hidden'); }
+function esc(text) {
+    const d = document.createElement('div');
+    d.textContent = String(text);
+    return d.innerHTML;
+}
+
+/* ═══════════════════════════════════════════
+   File handling
+════════════════════════════════════════════ */
+function handleFileSelect(event) {
+    const file = event.target.files?.[0];
+    if (file) processFile(file);
+}
+
+function processFile(file) {
+    if (!file) return;
+    // 처리 중이면 무시 (중복 실행 방지)
+    if (App._isRunning) return;
+    if (file.type !== 'application/pdf') {
+        App._showError('PDF 파일만 업로드할 수 있습니다. (.pdf 확장자)');
+        return;
+    }
+    // 이전 에러 카드 초기화
+    hide('errorCard');
+    // 파일명 표시
+    $('fileNameText').textContent = file.name;
+    show('fileNameBar');
+    // 분석 시작
+    App.run(file);
+}
+
+/* ── Drag & Drop ── */
+const dropZone = $('dropZone');
+
+dropZone.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+});
+
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    dropZone.classList.add('drag-over');
+});
+
+dropZone.addEventListener('dragleave', (e) => {
+    // 자식 요소로 이동하는 경우 무시
+    if (!dropZone.contains(e.relatedTarget)) {
+        dropZone.classList.remove('drag-over');
+    }
+});
+
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
+});
+
+/* ── Modal overlay click to close ── */
+$('settingsOverlay').addEventListener('click', function (e) {
+    if (e.target === this) UI.closeSettings();
+});
+
+/* ── Keyboard: Escape to close modal ── */
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('settingsOverlay').classList.contains('hidden')) {
+        UI.closeSettings();
+    }
+});
+
+/* ═══════════════════════════════════════════
+   Init
+════════════════════════════════════════════ */
+(function init() {
+    // API 키 미설정 시 모달 자동 표시
+    if (!API.getApiKey()) {
+        setTimeout(() => UI.openSettings(), 250);
+    }
+})();
+</script>
+</body>
+</html>

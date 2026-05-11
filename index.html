@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 공감 다이어리</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;400;600&family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #faf7f2;
+            --paper: #fffef9;
+            --shadow-color: rgba(160, 120, 90, 0.12);
+            --text-dark: #3d2b1f;
+            --text-mid: #7a5c4a;
+            --text-light: #b09080;
+            --accent: #c2714f;
+            --accent-hover: #a85d3c;
+            --accent-light: #e8a884;
+            --accent-subtle: #f5e4d8;
+            --border: #e0d4c8;
+            --line: #ede5dc;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: var(--bg);
+            background-image: repeating-linear-gradient(
+                transparent, transparent 27px, var(--line) 27px, var(--line) 28px
+            );
+            background-attachment: fixed;
+            color: var(--text-dark);
+            min-height: 100vh;
+        }
+
+        /* ── Layout ── */
+        .container {
+            max-width: 660px;
+            margin: 0 auto;
+            padding: 24px 16px 80px;
+        }
+
+        /* ── Header ── */
+        .header {
+            text-align: center;
+            padding: 36px 0 28px;
+        }
+        .header-icon { font-size: 2.4rem; line-height: 1; }
+        .header h1 {
+            font-family: 'Noto Serif KR', serif;
+            font-size: 1.85rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-top: 8px;
+            letter-spacing: -0.3px;
+        }
+        .header-date {
+            font-size: 0.83rem;
+            color: var(--text-light);
+            margin-top: 6px;
+        }
+
+        /* ── Settings button ── */
+        .settings-btn {
+            position: fixed;
+            top: 14px; right: 14px;
+            background: var(--paper);
+            border: 1.5px solid var(--border);
+            border-radius: 50%;
+            width: 40px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px var(--shadow-color);
+            transition: all 0.2s;
+            z-index: 50;
+        }
+        .settings-btn:hover { border-color: var(--accent-light); transform: rotate(20deg); }
+
+        /* ── Paper card (shared) ── */
+        .paper-card {
+            background: var(--paper);
+            border-radius: 3px 12px 12px 3px;
+            box-shadow:
+                -5px 0 0 var(--accent-light),
+                0 2px 16px var(--shadow-color),
+                0 6px 40px rgba(160,120,90,0.06);
+            padding: 28px 28px 24px 36px;
+            margin-bottom: 18px;
+            position: relative;
+        }
+        .paper-card::before {
+            content: '';
+            position: absolute;
+            top: 0; bottom: 0; left: 28px;
+            width: 1px;
+            background: rgba(194,113,79,0.18);
+        }
+
+        /* ── Write section ── */
+        .section-label {
+            font-family: 'Noto Serif KR', serif;
+            font-size: 0.9rem;
+            color: var(--text-mid);
+            margin-bottom: 14px;
+            display: flex; align-items: center; gap: 6px;
+        }
+        textarea.diary-input {
+            width: 100%;
+            min-height: 90px;
+            font-family: 'Noto Serif KR', serif;
+            font-size: 1.05rem;
+            line-height: 1.85;
+            color: var(--text-dark);
+            background: transparent;
+            border: none;
+            outline: none;
+            resize: none;
+            padding: 0;
+            caret-color: var(--accent);
+        }
+        textarea.diary-input::placeholder { color: var(--text-light); font-style: italic; }
+        .input-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 14px;
+        }
+        .char-count { font-size: 0.75rem; color: var(--text-light); }
+        .hint { font-size: 0.73rem; color: var(--text-light); }
+
+        .submit-btn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 24px;
+            padding: 11px 26px;
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex; align-items: center; gap: 7px;
+            transition: all 0.2s;
+            margin-top: 14px;
+            margin-left: auto;
+        }
+        .submit-btn:hover:not(:disabled) {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(194,113,79,0.32);
+        }
+        .submit-btn:disabled { background: var(--text-light); cursor: not-allowed; }
+
+        /* ── Loading ── */
+        .loading-card {
+            background: var(--paper);
+            border-radius: 12px;
+            padding: 36px;
+            text-align: center;
+            box-shadow: 0 2px 16px var(--shadow-color);
+            margin-bottom: 18px;
+        }
+        .loading-text {
+            font-family: 'Noto Serif KR', serif;
+            color: var(--text-mid);
+            font-size: 0.95rem;
+            margin-bottom: 16px;
+        }
+        .dots { display: inline-flex; gap: 7px; }
+        .dots span {
+            width: 9px; height: 9px;
+            border-radius: 50%;
+            background: var(--accent-light);
+            animation: pulse 1.3s ease-in-out infinite;
+        }
+        .dots span:nth-child(2) { animation-delay: 0.22s; }
+        .dots span:nth-child(3) { animation-delay: 0.44s; }
+        @keyframes pulse {
+            0%, 80%, 100% { transform: scale(0.75); opacity: 0.45; }
+            40% { transform: scale(1.1); opacity: 1; }
+        }
+
+        /* ── Result card ── */
+        .result-card {
+            background: var(--paper);
+            border-radius: 3px 12px 12px 3px;
+            box-shadow:
+                -5px 0 0 var(--accent),
+                0 2px 16px var(--shadow-color);
+            padding: 26px 28px 24px 36px;
+            margin-bottom: 18px;
+            animation: slideIn 0.45s cubic-bezier(0.16,1,0.3,1);
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(18px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .emotion-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--accent-subtle);
+            border: 1px solid rgba(194,113,79,0.25);
+            border-radius: 20px;
+            padding: 6px 16px;
+            font-size: 0.88rem;
+            color: var(--accent);
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+        .emotion-emoji { font-size: 1.15rem; }
+
+        .result-block { margin-bottom: 18px; }
+        .result-label {
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--text-light);
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            margin-bottom: 7px;
+        }
+        .result-text {
+            font-family: 'Noto Serif KR', serif;
+            font-size: 0.98rem;
+            line-height: 1.95;
+            color: var(--text-dark);
+        }
+
+        .tomorrow-box {
+            background: var(--accent-subtle);
+            border-radius: 10px;
+            padding: 16px 18px;
+            margin-top: 20px;
+        }
+        .tomorrow-label {
+            font-size: 0.75rem;
+            color: var(--accent);
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+        .tomorrow-text {
+            font-family: 'Noto Serif KR', serif;
+            font-size: 0.93rem;
+            color: var(--text-dark);
+            line-height: 1.75;
+        }
+
+        .result-footer {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 18px;
+        }
+        .new-btn {
+            background: none;
+            border: 1.5px solid var(--border);
+            border-radius: 20px;
+            padding: 8px 20px;
+            font-size: 0.85rem;
+            color: var(--text-mid);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .new-btn:hover { border-color: var(--accent-light); color: var(--accent); }
+
+        /* ── Error ── */
+        .error-box {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            background: #fff8f7;
+            border-left: 4px solid #e07070;
+            border-radius: 0 8px 8px 0;
+            padding: 14px 16px;
+            color: #b84c4c;
+            font-size: 0.88rem;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+        .retry-btn {
+            background: none;
+            border: 1.5px solid #e07070;
+            border-radius: 16px;
+            padding: 5px 14px;
+            font-size: 0.8rem;
+            color: #b84c4c;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: all 0.2s;
+            display: block;
+        }
+        .retry-btn:hover { background: #fff0f0; }
+
+        /* ── History ── */
+        .history-section { margin-top: 36px; }
+        .history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+        .history-title {
+            font-family: 'Noto Serif KR', serif;
+            font-size: 1.05rem;
+            color: var(--text-mid);
+            display: flex; align-items: center; gap: 7px;
+        }
+        .history-clear-btn {
+            background: none;
+            border: none;
+            font-size: 0.75rem;
+            color: var(--text-light);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .history-clear-btn:hover { color: #b84c4c; background: #fff5f5; }
+
+        .history-item {
+            background: var(--paper);
+            border-radius: 3px 8px 8px 3px;
+            box-shadow: -3px 0 0 var(--border), 0 1px 8px var(--shadow-color);
+            padding: 14px 18px 14px 22px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: box-shadow 0.2s;
+        }
+        .history-item:hover { box-shadow: -3px 0 0 var(--accent-light), 0 2px 12px var(--shadow-color); }
+        .history-item.expanded { box-shadow: -3px 0 0 var(--accent), 0 2px 12px var(--shadow-color); }
+
+        .history-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 7px;
+        }
+        .history-emotion {
+            display: flex; align-items: center; gap: 5px;
+            font-size: 0.83rem;
+            color: var(--text-mid);
+        }
+        .history-date { font-size: 0.72rem; color: var(--text-light); }
+        .history-entry {
+            font-family: 'Noto Serif KR', serif;
+            font-size: 0.88rem;
+            color: var(--text-dark);
+            line-height: 1.6;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+        }
+
+        .history-detail {
+            border-top: 1px solid var(--border);
+            margin-top: 12px;
+            padding-top: 12px;
+            font-size: 0.83rem;
+            color: var(--text-mid);
+            line-height: 1.8;
+            display: none;
+            animation: fadeIn 0.25s ease;
+        }
+        .history-item.expanded .history-detail { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .history-detail .dl { margin-bottom: 6px; }
+        .history-detail .dl strong { color: var(--text-dark); font-size: 0.78rem; }
+
+        .history-empty {
+            text-align: center;
+            padding: 32px 16px;
+            color: var(--text-light);
+            font-size: 0.88rem;
+            line-height: 1.8;
+        }
+
+        /* ── Modal ── */
+        .overlay {
+            position: fixed; inset: 0;
+            background: rgba(40,25,15,0.45);
+            backdrop-filter: blur(5px);
+            z-index: 100;
+            display: flex; align-items: center; justify-content: center;
+            padding: 16px;
+        }
+        .overlay.hidden { display: none; }
+
+        .modal {
+            background: var(--paper);
+            border-radius: 18px;
+            padding: 32px 28px;
+            width: 100%; max-width: 400px;
+            box-shadow: 0 24px 64px rgba(40,25,15,0.25);
+            animation: modalIn 0.3s cubic-bezier(0.16,1,0.3,1);
+        }
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.94) translateY(12px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .modal-icon { font-size: 2rem; text-align: center; margin-bottom: 8px; }
+        .modal h2 {
+            font-family: 'Noto Serif KR', serif;
+            font-size: 1.25rem;
+            color: var(--text-dark);
+            text-align: center;
+            margin-bottom: 6px;
+        }
+        .modal-desc {
+            font-size: 0.82rem;
+            color: var(--text-mid);
+            text-align: center;
+            line-height: 1.7;
+            margin-bottom: 24px;
+        }
+        .form-label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--text-mid);
+            margin-bottom: 7px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 11px 14px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: var(--text-dark);
+            background: var(--bg);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-input:focus { border-color: var(--accent); }
+        .form-hint {
+            font-size: 0.73rem;
+            color: var(--text-light);
+            margin-top: 6px;
+            line-height: 1.5;
+        }
+        .modal-btns {
+            display: flex; gap: 10px;
+            margin-top: 22px;
+        }
+        .btn-primary {
+            flex: 1;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-ghost {
+            flex: 1;
+            background: none;
+            color: var(--text-mid);
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-ghost:hover { border-color: var(--text-mid); }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<!-- Settings button -->
+<button class="settings-btn" onclick="UI.openSettings()" title="API 키 설정">⚙️</button>
+
+<div class="container">
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-icon">📔</div>
+        <h1>AI 공감 다이어리</h1>
+        <div class="header-date" id="todayDate"></div>
+    </div>
+
+    <!-- Write section -->
+    <div class="paper-card" id="writeSection">
+        <div class="section-label">✏️ 오늘 하루는 어땠나요?</div>
+        <textarea
+            class="diary-input"
+            id="diaryInput"
+            placeholder="오늘 있었던 일을 한 줄로 적어보세요..."
+            maxlength="300"
+            rows="3"
+            oninput="updateCount()"
+            onkeydown="handleKey(event)"
+        ></textarea>
+        <div class="input-footer">
+            <span class="hint">Ctrl+Enter 로 바로 보내기</span>
+            <span class="char-count"><span id="charCount">0</span>/300</span>
+        </div>
+        <button class="submit-btn" id="submitBtn" onclick="App.analyze()">
+            <span>AI에게 마음 보내기</span>
+            <span>💌</span>
+        </button>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading-card hidden" id="loadingCard">
+        <div class="loading-text" id="loadingText">AI가 당신의 마음을 읽고 있어요...</div>
+        <div class="dots">
+            <span></span><span></span><span></span>
+        </div>
+    </div>
+
+    <!-- Error -->
+    <div class="error-box hidden" id="errorBox">
+        <span style="font-size:1.2rem;flex-shrink:0">😔</span>
+        <div>
+            <div id="errorMsg"></div>
+            <button class="retry-btn" onclick="App.retry()">다시 시도하기</button>
+        </div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-card hidden" id="resultCard">
+        <div class="emotion-badge">
+            <span class="emotion-emoji" id="rEmoji"></span>
+            <span id="rEmotion"></span>
+        </div>
+        <div class="result-block">
+            <div class="result-label">공감</div>
+            <div class="result-text" id="rEmpathy"></div>
+        </div>
+        <div class="result-block">
+            <div class="result-label">위로</div>
+            <div class="result-text" id="rComfort"></div>
+        </div>
+        <div class="tomorrow-box">
+            <div class="tomorrow-label">✨ 내일을 위한 한마디</div>
+            <div class="tomorrow-text" id="rTomorrow"></div>
+        </div>
+        <div class="result-footer">
+            <button class="new-btn" onclick="App.reset()">새로 쓰기 ✏️</button>
+        </div>
+    </div>
+
+    <!-- History -->
+    <div class="history-section">
+        <div class="history-header">
+            <div class="history-title">📖 지난 일기들</div>
+            <button class="history-clear-btn" onclick="History.clear()">전체 삭제</button>
+        </div>
+        <div id="historyList"></div>
+    </div>
+
+</div>
+
+<!-- Settings Modal -->
+<div class="overlay hidden" id="settingsOverlay">
+    <div class="modal">
+        <div class="modal-icon">🔑</div>
+        <h2>API 키 설정</h2>
+        <p class="modal-desc">
+            OpenRouter API 키를 입력해주세요.<br>키는 이 기기 브라우저에만 저장됩니다.
+        </p>
+        <label class="form-label" for="apiKeyInput">OpenRouter API Key</label>
+        <input
+            type="password"
+            class="form-input"
+            id="apiKeyInput"
+            placeholder="sk-or-v1-..."
+            autocomplete="off"
+            onkeydown="if(event.key==='Enter') UI.saveKey()"
+        />
+        <div class="form-hint">
+            키는 openrouter.ai/keys 에서 발급받을 수 있습니다.
+        </div>
+        <div class="modal-btns">
+            <button class="btn-ghost" id="cancelBtn" onclick="UI.closeSettings()">나중에</button>
+            <button class="btn-primary" onclick="UI.saveKey()">저장하기</button>
+        </div>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+/* ── Constants ── */
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const MODEL = 'anthropic/claude-sonnet-4-6';
+const STORAGE = { key: 'aidiaryv1_key', history: 'aidiaryv1_history' };
+
+const LOADING_MSGS = [
+    'AI가 당신의 마음을 읽고 있어요...',
+    '감정을 분석하고 있어요...',
+    '따뜻한 말을 준비하고 있어요...',
+];
+
+/* ── Helpers ── */
+const $ = id => document.getElementById(id);
+const show = id => $(id).classList.remove('hidden');
+const hide = id => $(id).classList.add('hidden');
+function esc(text) {
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+}
+
+/* ── State ── */
+let lastEntry = '';
+let loadingTimer = null;
+
+/* ── Date ── */
+function setDate() {
+    $('todayDate').textContent = new Date().toLocaleDateString('ko-KR', {
+        year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'
+    });
+}
+
+/* ── Input ── */
+function updateCount() {
+    $('charCount').textContent = $('diaryInput').value.length;
+}
+function handleKey(e) {
+    if (e.key === 'Enter' && e.ctrlKey) App.analyze();
+}
+
+/* ── OpenRouter API ── */
+const API = {
+    async call(entry, isRetry = false) {
+        const key = localStorage.getItem(STORAGE.key);
+        if (!key) throw new Error('API_KEY_MISSING');
+
+        const prompt = `당신은 따뜻하고 공감 능력이 뛰어난 AI 감정 상담사입니다.
+사용자가 오늘 하루에 대해 적었습니다.
+
+오늘의 일기: "${entry}"
+
+아래 JSON 형식으로만 응답하세요. 마크다운이나 다른 텍스트 없이 순수한 JSON만 출력하세요:
+{
+  "emotion": "주요 감정 한 단어 (예: 기쁨, 슬픔, 설렘, 불안, 피곤함, 외로움, 감사, 화남, 뿌듯함, 우울함)",
+  "emotion_emoji": "감정을 나타내는 이모지 하나",
+  "empathy_message": "사용자의 감정에 진심으로 공감하는 말 2~3문장. 따뜻하고 친근하게, 존댓말로.",
+  "comfort_message": "구체적이고 따뜻한 위로와 응원의 말 2~3문장. 존댓말로.",
+  "tomorrow_hope": "내일을 위한 희망적이고 따뜻한 한마디. 존댓말로."
+}`;
+
+        const res = await fetch(OPENROUTER_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${key}`,
+                'Content-Type': 'application/json',
+                'HTTP-Referer': location.href,
+                'X-Title': 'AI Empathy Diary'
+            },
+            body: JSON.stringify({
+                model: MODEL,
+                messages: [{ role: 'user', content: prompt }],
+                temperature: 0.85,
+                max_tokens: 512
+            })
+        });
+
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            if (res.status === 401) throw new Error('API_UNAUTHORIZED');
+            if (res.status === 429) {
+                if (!isRetry) {
+                    $('loadingText').textContent = '잠시 후 재시도할게요... (5초)';
+                    await new Promise(r => setTimeout(r, 5000));
+                    return API.call(entry, true);
+                }
+                throw new Error('API_RATE_LIMIT');
+            }
+            throw new Error(body?.error?.message || `API 오류 (${res.status})`);
+        }
+
+        const data = await res.json();
+        const raw = data.choices?.[0]?.message?.content?.trim() || '';
+        return API.parseJSON(raw);
+    },
+
+    parseJSON(raw) {
+        // Strip markdown code fence if present
+        let str = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+        // Extract first {...} block
+        const m = str.match(/\{[\s\S]*\}/);
+        if (m) str = m[0];
+
+        try {
+            return JSON.parse(str);
+        } catch {
+            return {
+                emotion: '알 수 없음',
+                emotion_emoji: '💭',
+                empathy_message: raw || '오늘 하루도 고생하셨어요.',
+                comfort_message: '당신의 이야기를 들어줄게요. 충분히 잘 하고 있어요.',
+                tomorrow_hope: '내일은 더 밝은 하루가 될 거예요.'
+            };
+        }
+    }
+};
+
+/* ── Error messages ── */
+function friendlyError(code) {
+    switch (code) {
+        case 'API_KEY_MISSING':   return 'API 키가 설정되지 않았어요. 오른쪽 위 ⚙️ 버튼을 눌러 설정해주세요.';
+        case 'API_UNAUTHORIZED':  return 'API 키가 올바르지 않아요. ⚙️ 버튼을 눌러 키를 다시 확인해주세요.';
+        case 'API_RATE_LIMIT':    return '요청이 너무 많아요. 잠시 후 다시 시도해주세요.';
+        default:                   return code || '알 수 없는 오류가 발생했어요.';
+    }
+}
+
+/* ── Main app logic ── */
+const App = {
+    async analyze() {
+        const entry = $('diaryInput').value.trim();
+        if (!entry) { $('diaryInput').focus(); return; }
+
+        lastEntry = entry;
+        this._setLoading(true);
+
+        try {
+            const result = await API.call(entry);
+            this._showResult(result);
+            History.save(entry, result);
+            History.render();
+        } catch (err) {
+            this._showError(err.message);
+        } finally {
+            this._setLoading(false);
+        }
+    },
+
+    retry() {
+        hide('errorBox');
+        hide('resultCard');
+        if (lastEntry) {
+            $('diaryInput').value = lastEntry;
+            updateCount();
+            show('writeSection');
+        }
+    },
+
+    reset() {
+        hide('resultCard');
+        hide('errorBox');
+        show('writeSection');
+        $('diaryInput').value = '';
+        updateCount();
+        lastEntry = '';
+        $('diaryInput').focus();
+    },
+
+    _setLoading(on) {
+        clearInterval(loadingTimer);
+        if (on) {
+            hide('writeSection');
+            hide('errorBox');
+            hide('resultCard');
+            let i = 0;
+            $('loadingText').textContent = LOADING_MSGS[0];
+            loadingTimer = setInterval(() => {
+                i = (i + 1) % LOADING_MSGS.length;
+                $('loadingText').textContent = LOADING_MSGS[i];
+            }, 1800);
+            show('loadingCard');
+            $('submitBtn').disabled = true;
+        } else {
+            hide('loadingCard');
+            $('submitBtn').disabled = false;
+        }
+    },
+
+    _showResult(r) {
+        $('rEmoji').textContent    = r.emotion_emoji    || '💭';
+        $('rEmotion').textContent  = `${r.emotion || '알 수 없음'} 마음이시군요`;
+        $('rEmpathy').textContent  = r.empathy_message  || '';
+        $('rComfort').textContent  = r.comfort_message  || '';
+        $('rTomorrow').textContent = r.tomorrow_hope    || '';
+        show('resultCard');
+    },
+
+    _showError(code) {
+        show('writeSection');
+        hide('resultCard');
+        $('errorMsg').textContent = friendlyError(code);
+        show('errorBox');
+        if (code === 'API_KEY_MISSING' || code === 'API_UNAUTHORIZED') {
+            setTimeout(() => UI.openSettings(), 300);
+        }
+    }
+};
+
+/* ── History ── */
+const History = {
+    get() {
+        try { return JSON.parse(localStorage.getItem(STORAGE.history) || '[]'); }
+        catch { return []; }
+    },
+
+    save(entry, result) {
+        const list = this.get();
+        list.unshift({ id: Date.now(), date: new Date().toISOString(), entry, result });
+        if (list.length > 60) list.length = 60;
+        localStorage.setItem(STORAGE.history, JSON.stringify(list));
+    },
+
+    clear() {
+        if (!confirm('모든 일기 기록을 삭제할까요?')) return;
+        localStorage.removeItem(STORAGE.history);
+        this.render();
+    },
+
+    render() {
+        const list = this.get();
+        const el = $('historyList');
+
+        if (!list.length) {
+            el.innerHTML = '<div class="history-empty">아직 기록된 일기가 없어요.<br>첫 번째 일기를 써보세요 ✏️</div>';
+            return;
+        }
+
+        el.innerHTML = list.map(item => {
+            const d = new Date(item.date);
+            const dateStr = d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' });
+            const timeStr = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            const r = item.result;
+            return `
+<div class="history-item" onclick="this.classList.toggle('expanded')">
+  <div class="history-meta">
+    <div class="history-emotion">
+      <span>${esc(r.emotion_emoji || '💭')}</span>
+      <span>${esc(r.emotion || '')}</span>
+    </div>
+    <div class="history-date">${dateStr} ${timeStr}</div>
+  </div>
+  <div class="history-entry">${esc(item.entry)}</div>
+  <div class="history-detail">
+    <div class="dl"><strong>공감</strong><br>${esc(r.empathy_message || '')}</div>
+    <div class="dl"><strong>위로</strong><br>${esc(r.comfort_message || '')}</div>
+    <div style="color:var(--accent);font-style:italic">✨ ${esc(r.tomorrow_hope || '')}</div>
+  </div>
+</div>`;
+        }).join('');
+    }
+};
+
+/* ── Settings UI ── */
+const UI = {
+    openSettings() {
+        const hasKey = !!localStorage.getItem(STORAGE.key);
+        $('apiKeyInput').value = localStorage.getItem(STORAGE.key) || '';
+        $('cancelBtn').textContent = hasKey ? '취소' : '나중에';
+        show('settingsOverlay');
+        setTimeout(() => $('apiKeyInput').focus(), 150);
+    },
+
+    closeSettings() {
+        hide('settingsOverlay');
+    },
+
+    saveKey() {
+        const key = $('apiKeyInput').value.trim();
+        if (!key) { $('apiKeyInput').focus(); return; }
+        localStorage.setItem(STORAGE.key, key);
+        hide('settingsOverlay');
+    }
+};
+
+/* ── Overlay click to close ── */
+$('settingsOverlay').addEventListener('click', function(e) {
+    if (e.target === this) UI.closeSettings();
+});
+
+/* ── Init ── */
+setDate();
+History.render();
+if (!localStorage.getItem(STORAGE.key)) {
+    setTimeout(() => UI.openSettings(), 200);
+}
+</script>
+</body>
+</html>
