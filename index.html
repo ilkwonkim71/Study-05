@@ -472,6 +472,7 @@
 
         .hidden { display: none !important; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -594,6 +595,11 @@
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MODEL = 'anthropic/claude-sonnet-4-6';
 const STORAGE = { key: 'aidiaryv1_key', history: 'aidiaryv1_history' };
+
+/* -- Supabase -- */
+const SUPABASE_URL = 'https://vpowmnkukvuoopmuwlvd.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZwb3dtbmt1a3Z1b29wbXV3bHZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4OTYwNTcsImV4cCI6MjA5MzQ3MjA1N30.96t0DqMoyxPNCQZSB8xoxsy4lIayxDZd1gtGqA90BNA';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const LOADING_MSGS = [
     'AI가 당신의 마음을 읽고 있어요...',
@@ -728,8 +734,8 @@ const App = {
         try {
             const result = await API.call(entry);
             this._showResult(result);
-            History.save(entry, result);
-            History.render();
+            await History.save(entry, result);
+            await History.render();
         } catch (err) {
             this._showError(err.message);
         } finally {
@@ -797,29 +803,52 @@ const App = {
     }
 };
 
-/* ── History ── */
+/* ── History (Supabase) ── */
 const History = {
-    get() {
-        try { return JSON.parse(localStorage.getItem(STORAGE.history) || '[]'); }
-        catch { return []; }
+    async get() {
+        const { data, error } = await db
+            .from('my_diary')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(100);
+        if (error) { console.error('Supabase error:', error); return []; }
+        return data.map(row => ({
+            id: row.id,
+            date: row.date,
+            entry: row.entry,
+            result: {
+                emotion: row.emotion,
+                emotion_emoji: row.emotion_emoji,
+                empathy_message: row.empathy_message,
+                comfort_message: row.comfort_message,
+                tomorrow_hope: row.tomorrow_hope
+            }
+        }));
     },
 
-    save(entry, result) {
-        const list = this.get();
-        list.unshift({ id: Date.now(), date: new Date().toISOString(), entry, result });
-        if (list.length > 100) list.length = 100;
-        localStorage.setItem(STORAGE.history, JSON.stringify(list));
+    async save(entry, result) {
+        const { error } = await db.from('my_diary').insert({
+            date: new Date().toISOString(),
+            entry,
+            emotion: result.emotion,
+            emotion_emoji: result.emotion_emoji,
+            empathy_message: result.empathy_message,
+            comfort_message: result.comfort_message,
+            tomorrow_hope: result.tomorrow_hope
+        });
+        if (error) console.error('Supabase insert error:', error);
     },
 
-    clear() {
+    async clear() {
         if (!confirm('모든 일기 기록을 삭제할까요?')) return;
-        localStorage.removeItem(STORAGE.history);
-        this.render();
+        const { error } = await db.from('my_diary').delete().gte('id', 1);
+        if (error) console.error('Supabase delete error:', error);
+        await this.render();
     },
 
-    render() {
-        const list = this.get();
-        const el = $('historyList');
+    async render() {
+        const list = await this.get();
+        const el = document.getElementById('historyList');
 
         if (!list.length) {
             el.innerHTML = '<div class="history-empty">아직 기록된 일기가 없어요.<br>첫 번째 일기를 써보세요 ✏️</div>';
@@ -831,26 +860,24 @@ const History = {
             const dateStr = d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' });
             const timeStr = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
             const r = item.result;
-            return `
-<div class="history-item" onclick="this.classList.toggle('expanded')">
-  <div class="history-meta">
-    <div class="history-emotion">
-      <span>${esc(r.emotion_emoji || '💭')}</span>
-      <span>${esc(r.emotion || '')}</span>
-    </div>
-    <div class="history-date">${dateStr} ${timeStr}</div>
-  </div>
-  <div class="history-entry">${esc(item.entry)}</div>
-  <div class="history-detail">
-    <div class="dl"><strong>공감</strong><br>${esc(r.empathy_message || '')}</div>
-    <div class="dl"><strong>위로</strong><br>${esc(r.comfort_message || '')}</div>
-    <div style="color:var(--accent);font-style:italic">✨ ${esc(r.tomorrow_hope || '')}</div>
-  </div>
-</div>`;
+            return '<div class="history-item" onclick="this.classList.toggle(\'expanded\')">' +
+                '<div class="history-meta">' +
+                    '<div class="history-emotion">' +
+                        '<span>' + esc(r.emotion_emoji || '💭') + '</span>' +
+                        '<span>' + esc(r.emotion || '') + '</span>' +
+                    '</div>' +
+                    '<div class="history-date">' + dateStr + ' ' + timeStr + '</div>' +
+                '</div>' +
+                '<div class="history-entry">' + esc(item.entry) + '</div>' +
+                '<div class="history-detail">' +
+                    '<div class="dl"><strong>공감</strong><br>' + esc(r.empathy_message || '') + '</div>' +
+                    '<div class="dl"><strong>위로</strong><br>' + esc(r.comfort_message || '') + '</div>' +
+                    '<div style="color:var(--accent);font-style:italic">✨ ' + esc(r.tomorrow_hope || '') + '</div>' +
+                '</div>' +
+                '</div>';
         }).join('');
     }
 };
-
 /* ── Settings UI ── */
 const UI = {
     openSettings() {
