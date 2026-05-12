@@ -807,7 +807,7 @@ const History = {
     save(entry, result) {
         const list = this.get();
         list.unshift({ id: Date.now(), date: new Date().toISOString(), entry, result });
-        if (list.length > 60) list.length = 60;
+        if (list.length > 100) list.length = 100;
         localStorage.setItem(STORAGE.history, JSON.stringify(list));
     },
 
