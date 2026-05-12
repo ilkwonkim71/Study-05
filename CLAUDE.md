@@ -25,7 +25,7 @@ open index.html           # macOS
 - **API 호출**: 브라우저 → OpenRouter API (`https://openrouter.ai/api/v1/chat/completions`) 직접 호출. 서버 없음.
 - **모델**: `anthropic/claude-sonnet-4-6`
 - **API 키 저장**: `localStorage` (`aidiaryv1_key`). 최초 실행 시 설정 모달이 자동 표시됨.
-- **일기 기록**: `localStorage` (`aidiaryv1_history`), 최대 60건.
+- **일기 기록**: `localStorage` (`aidiaryv1_history`), 최대 100건.
 
 ## Key JS Objects
 
